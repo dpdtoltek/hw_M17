@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from app.backend.db_depends import get_db
 from typing import Annotated
-from app.models import User
+from app.models import User, Task
 from app.schemas import CreateUser, UpdateUser
 from sqlalchemy import insert, select, update, delete
 from slugify import slugify
@@ -19,9 +19,19 @@ async def all_users(db: DbSession):
 
 @router.get('/user_id')
 async def user_by_id(user_id, db: DbSession):
-    user = db.scalars(select(User).where(User.id == user_id))
+    user = db.scalar(select(User).where(User.id == user_id))
     if user is not None:
-        return user.all()
+        return user
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User was not found')
+
+
+@router.get('/user_id/tasks')
+async def tasks_by_user_id(user_id, db: DbSession):
+    user = db.scalar(select(User).where(User.id == user_id))
+    tasks = db.scalars(select(Task).where(Task.user_id == user_id)).all()
+    if user is not None:
+        return tasks
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User was not found')
 
@@ -39,7 +49,7 @@ async def create_user(db: DbSession, create_user: CreateUser):
 
 @router.put('/update')
 async def update_user(user_id: int, db: DbSession, update_user: UpdateUser):
-    user = db.scalars(select(User).where(User.id == user_id))
+    user = db.scalar(select(User).where(User.id == user_id))
     if user is not None:
         db.execute(update(User).where(User.id == user_id).values(
             firstname=update_user.firstname,
@@ -53,9 +63,10 @@ async def update_user(user_id: int, db: DbSession, update_user: UpdateUser):
 
 @router.delete('/delete')
 async def delete_user(user_id: int, db: DbSession):
-    user = db.scalars(select(User).where(User.id == user_id))
+    user = db.scalar(select(User).where(User.id == user_id))
     if user is not None:
         db.execute(delete(User).where(User.id == user_id))
+        db.execute(delete(Task).where(Task.user_id == user_id))
         db.commit()
         return {'status_code': status.HTTP_200_OK, 'transaction': 'User delete is successful!'}
     else:
